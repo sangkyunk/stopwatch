@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>스탑워치</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --card: #2a2a3d;
+    --text: #f0f0f5;
+    --accent: #7c9eff;
+    --accent2: #ff6b6b;
+    --muted: #9a9ab0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "Segoe UI", "Malgun Gothic", sans-serif;
+    color: var(--text);
+    overflow: hidden;
+    position: relative;
+    /* Cappadocia sunrise sky */
+    background:
+      radial-gradient(120% 60% at 50% 15%, rgba(255,224,150,0.55), rgba(255,224,150,0) 60%),
+      linear-gradient(180deg, #2b2350 0%, #5a3a6b 22%, #a0507e 42%, #e07a5f 60%, #f2a65a 76%, #f7c873 100%);
+  }
+  .landscape {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: 26vh;
+    z-index: 1;
+    pointer-events: none;
+  }
+  .bg-balloons {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+  .bg-balloons span {
+    position: absolute;
+    border-radius: 50% 50% 50% 50% / 55% 55% 45% 45%;
+    opacity: 0.35;
+    filter: blur(0.3px);
+  }
+  .balloon-field {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: 0;
+    z-index: 2;
+  }
+  .balloon {
+    position: absolute;
+    bottom: -6px;
+    width: 92px;
+    pointer-events: none;
+    transform-origin: 50% 100%;
+    animation: idleBob 3.2s ease-in-out infinite;
+  }
+  .balloon.launched {
+    animation: liftoff var(--dur, 26s) cubic-bezier(.3,.6,.4,1) infinite;
+  }
+  @keyframes idleBob {
+    0%, 100% { transform: translateY(0) rotate(-1.5deg); }
+    50% { transform: translateY(-6px) rotate(1.5deg); }
+  }
+  @keyframes liftoff {
+    0% { transform: translate(0, 0) rotate(-2deg); opacity: 1; }
+    12% { transform: translate(calc(var(--dx, 40px) * 0.15), -12vh) rotate(2deg); }
+    100% { transform: translate(var(--dx, 40px), -135vh) rotate(-2deg); opacity: 0; }
+  }
+  .card {
+    background: rgba(42, 42, 61, 0.88);
+    backdrop-filter: blur(2px);
+    border-radius: 16px;
+    padding: 32px 40px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    text-align: center;
+    width: 360px;
+    position: relative;
+    z-index: 3;
+  }
+  h1 {
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--muted);
+    margin: 0 0 16px;
+    letter-spacing: 2px;
+  }
+  .time {
+    font-variant-numeric: tabular-nums;
+    font-size: 52px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-bottom: 24px;
+  }
+  .time .ms {
+    font-size: 28px;
+    color: var(--muted);
+  }
+  .buttons {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  button {
+    border: none;
+    border-radius: 10px;
+    padding: 12px 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    color: white;
+    transition: transform 0.08s ease, opacity 0.15s ease;
+    width: 100%;
+  }
+  button:active { transform: scale(0.95); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  #startBtn { background: #3ecf8e; }
+  #stopBtn { background: var(--accent2); }
+  #lapBtn { background: var(--accent); }
+  #resetBtn { background: #55556b; }
+  #pomoStartBtn { background: #3ecf8e; }
+  #pomoResetBtn { background: #55556b; }
+
+  .laps {
+    max-height: 180px;
+    overflow-y: auto;
+    text-align: left;
+    border-top: 1px solid #3f3f55;
+    padding-top: 8px;
+  }
+  .laps ol {
+    margin: 0;
+    padding-left: 20px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .laps li {
+    padding: 4px 0;
+    display: flex;
+    justify-content: space-between;
+  }
+  .laps li span:last-child {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+  .laps::-webkit-scrollbar { width: 6px; }
+  .laps::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+
+  .tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .tab-btn {
+    background: #33334a;
+    color: var(--muted);
+    padding: 10px 8px;
+  }
+  .tab-btn.active {
+    background: var(--accent);
+    color: white;
+  }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .modes {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .mode-btn {
+    background: #33334a;
+    color: var(--muted);
+    padding: 8px 4px;
+    font-size: 13px;
+  }
+  .mode-btn.active {
+    background: var(--accent2);
+    color: white;
+  }
+  .session-label {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 4px;
+    letter-spacing: 1px;
+  }
+  .cycle-count {
+    color: var(--muted);
+    font-size: 13px;
+    margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+  <!-- distant silhouette balloons for atmosphere -->
+  <div class="bg-balloons">
+    <span style="left:8%; top:14%; width:26px; height:32px; background:#3a2a4a;"></span>
+    <span style="left:18%; top:22%; width:16px; height:20px; background:#3a2a4a;"></span>
+    <span style="left:78%; top:10%; width:22px; height:28px; background:#3a2a4a;"></span>
+    <span style="left:88%; top:20%; width:14px; height:18px; background:#3a2a4a;"></span>
+    <span style="left:60%; top:8%; width:12px; height:15px; background:#3a2a4a;"></span>
+  </div>
+
+  <!-- Cappadocia fairy-chimney rock silhouette -->
+  <svg class="landscape" viewBox="0 0 400 100" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="rockGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#3d2b3f"/>
+        <stop offset="100%" stop-color="#1c1424"/>
+      </linearGradient>
+    </defs>
+    <path d="M0,100 L0,60 Q10,40 20,58 L28,45 Q36,30 42,48 L50,70 L60,55 Q70,35 78,58 L86,40 Q94,20 100,42 L108,65 L120,50 Q128,32 136,52 L145,38 Q154,18 162,40 L170,68 L182,55 Q192,38 200,58 L210,45 Q220,26 228,48 L236,70 L248,52 Q258,34 266,55 L275,42 Q285,22 293,44 L302,66 L314,50 Q324,32 332,52 L342,60 Q352,44 360,60 L370,72 L382,58 Q392,45 400,62 L400,100 Z" fill="url(#rockGrad)"/>
+  </svg>
+
+  <!-- hot air balloons: grounded until the stopwatch starts -->
+  <div class="balloon-field" id="balloonField"></div>
+
+  <div class="card">
+    <div class="tabs">
+      <button class="tab-btn active" id="tabStopwatch">스탑워치</button>
+      <button class="tab-btn" id="tabPomodoro">포모도로</button>
+    </div>
+
+    <div class="panel active" id="panelStopwatch">
+      <div class="time" id="display">00:00:00<span class="ms">.00</span></div>
+      <div class="buttons">
+        <button id="startBtn">시작</button>
+        <button id="stopBtn" disabled>정지</button>
+        <button id="lapBtn" disabled>랩</button>
+        <button id="resetBtn">초기화</button>
+      </div>
+      <div class="laps">
+        <ol id="lapList"></ol>
+      </div>
+    </div>
+
+    <div class="panel" id="panelPomodoro">
+      <div class="modes">
+        <button class="mode-btn active" id="modeFocus" data-min="25">집중 25</button>
+        <button class="mode-btn" id="modeShort" data-min="5">짧은휴식 5</button>
+        <button class="mode-btn" id="modeLong" data-min="15">긴휴식 15</button>
+      </div>
+      <div class="session-label" id="sessionLabel">집중 시간</div>
+      <div class="time" id="pomoDisplay">25:00</div>
+      <div class="buttons" style="grid-template-columns: repeat(2, 1fr);">
+        <button id="pomoStartBtn">시작</button>
+        <button id="pomoResetBtn">초기화</button>
+      </div>
+      <div class="cycle-count" id="cycleCount">완료한 집중 세션: 0</div>
+    </div>
+  </div>
+
+<script>
+  let elapsed = 0;
+  let startTime = 0;
+  let timerId = null;
+  let running = false;
+  let lapCount = 0;
+
+  const display = document.getElementById('display');
+  const startBtn = document.getElementById('startBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const lapBtn = document.getElementById('lapBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const lapList = document.getElementById('lapList');
+
+  function format(ms) {
+    const totalMs = Math.floor(ms);
+    const hours = Math.floor(totalMs / 3600000);
+    const minutes = Math.floor((totalMs % 3600000) / 60000);
+    const seconds = Math.floor((totalMs % 60000) / 1000);
+    const centis = Math.floor((totalMs % 1000) / 10);
+    const pad = (n, l = 2) => String(n).padStart(l, '0');
+    return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}<span class="ms">.${pad(centis)}</span>`;
+  }
+
+  function tick() {
+    const now = performance.now();
+    display.innerHTML = format(elapsed + (now - startTime));
+    timerId = requestAnimationFrame(tick);
+  }
+
+  function start() {
+    if (running) return;
+    running = true;
+    startTime = performance.now();
+    timerId = requestAnimationFrame(tick);
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+    lapBtn.disabled = false;
+    launchBalloons();
+  }
+
+  function stop() {
+    if (!running) return;
+    running = false;
+    elapsed += performance.now() - startTime;
+    cancelAnimationFrame(timerId);
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    lapBtn.disabled = true;
+  }
+
+  function reset() {
+    running = false;
+    cancelAnimationFrame(timerId);
+    elapsed = 0;
+    lapCount = 0;
+    display.innerHTML = format(0);
+    lapList.innerHTML = '';
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    lapBtn.disabled = true;
+    resetBalloons();
+  }
+
+  function lap() {
+    if (!running) return;
+    lapCount++;
+    const now = performance.now();
+    const currentElapsed = elapsed + (now - startTime);
+    const li = document.createElement('li');
+    li.innerHTML = `<span>랩 ${lapCount}</span><span>${format(currentElapsed)}</span>`;
+    lapList.prepend(li);
+  }
+
+  startBtn.addEventListener('click', start);
+  stopBtn.addEventListener('click', stop);
+  lapBtn.addEventListener('click', lap);
+  resetBtn.addEventListener('click', reset);
+
+  // ---- Tabs ----
+  const tabStopwatch = document.getElementById('tabStopwatch');
+  const tabPomodoro = document.getElementById('tabPomodoro');
+  const panelStopwatch = document.getElementById('panelStopwatch');
+  const panelPomodoro = document.getElementById('panelPomodoro');
+
+  tabStopwatch.addEventListener('click', () => {
+    tabStopwatch.classList.add('active');
+    tabPomodoro.classList.remove('active');
+    panelStopwatch.classList.add('active');
+    panelPomodoro.classList.remove('active');
+  });
+  tabPomodoro.addEventListener('click', () => {
+    tabPomodoro.classList.add('active');
+    tabStopwatch.classList.remove('active');
+    panelPomodoro.classList.add('active');
+    panelStopwatch.classList.remove('active');
+  });
+
+  // ---- Pomodoro ----
+  const modeFocus = document.getElementById('modeFocus');
+  const modeShort = document.getElementById('modeShort');
+  const modeLong = document.getElementById('modeLong');
+  const sessionLabel = document.getElementById('sessionLabel');
+  const pomoDisplay = document.getElementById('pomoDisplay');
+  const pomoStartBtn = document.getElementById('pomoStartBtn');
+  const pomoResetBtn = document.getElementById('pomoResetBtn');
+  const cycleCount = document.getElementById('cycleCount');
+
+  const modeButtons = [modeFocus, modeShort, modeLong];
+  const modeLabels = { modeFocus: '집중 시간', modeShort: '짧은 휴식', modeLong: '긴 휴식' };
+
+  let pomoTotalSec = 25 * 60;
+  let pomoRemainingSec = pomoTotalSec;
+  let pomoRunning = false;
+  let pomoIntervalId = null;
+  let completedFocusSessions = 0;
+  let currentMode = 'modeFocus';
+
+  function formatPomo(sec) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+
+  function setMode(btn) {
+    pomoStop();
+    modeButtons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentMode = btn.id;
+    pomoTotalSec = Number(btn.dataset.min) * 60;
+    pomoRemainingSec = pomoTotalSec;
+    sessionLabel.textContent = modeLabels[btn.id];
+    pomoDisplay.textContent = formatPomo(pomoRemainingSec);
+    pomoStartBtn.textContent = '시작';
+  }
+
+  function pomoTick() {
+    pomoRemainingSec--;
+    pomoDisplay.textContent = formatPomo(pomoRemainingSec);
+    if (pomoRemainingSec <= 0) {
+      pomoStop();
+      if (currentMode === 'modeFocus') {
+        completedFocusSessions++;
+        cycleCount.textContent = `완료한 집중 세션: ${completedFocusSessions}`;
+      }
+      alert(modeLabels[currentMode] + ' 종료! 수고하셨습니다.');
+      pomoRemainingSec = pomoTotalSec;
+      pomoDisplay.textContent = formatPomo(pomoRemainingSec);
+    }
+  }
+
+  function pomoStart() {
+    if (pomoRunning) return;
+    pomoRunning = true;
+    pomoStartBtn.textContent = '일시정지';
+    pomoIntervalId = setInterval(pomoTick, 1000);
+  }
+
+  function pomoStop() {
+    pomoRunning = false;
+    pomoStartBtn.textContent = '시작';
+    clearInterval(pomoIntervalId);
+  }
+
+  function pomoReset() {
+    pomoStop();
+    pomoRemainingSec = pomoTotalSec;
+    pomoDisplay.textContent = formatPomo(pomoRemainingSec);
+  }
+
+  modeFocus.addEventListener('click', () => setMode(modeFocus));
+  modeShort.addEventListener('click', () => setMode(modeShort));
+  modeLong.addEventListener('click', () => setMode(modeLong));
+
+  pomoStartBtn.addEventListener('click', () => {
+    if (pomoRunning) pomoStop();
+    else pomoStart();
+  });
+  pomoResetBtn.addEventListener('click', pomoReset);
+
+  // ---- Colorful hot-air balloons (Cappadocia style) ----
+  const balloonField = document.getElementById('balloonField');
+  const COLOR_POOL = [
+    '#e63946', '#f4a261', '#e9c46a', '#2a9d8f', '#264653',
+    '#f72585', '#7209b7', '#4361ee', '#4cc9f0', '#ff9f1c',
+    '#ffd166', '#06d6a0', '#118ab2', '#ef476f'
+  ];
+  const BALLOON_COUNT = 6;
+  let balloons = [];
+
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function balloonSVG(uid, colors) {
+    const stripeW = 76 / colors.length;
+    const stripes = colors.map((c, i) =>
+      `<rect x="${(i * stripeW).toFixed(1)}" y="0" width="${(stripeW + 0.6).toFixed(1)}" height="140" fill="${c}"/>`
+    ).join('');
+    return `
+      <svg viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+        <defs><clipPath id="clip-${uid}"><ellipse cx="50" cy="45" rx="38" ry="45"/></clipPath></defs>
+        <g clip-path="url(#clip-${uid})">
+          <g transform="translate(12,0)">${stripes}</g>
+        </g>
+        <ellipse cx="50" cy="45" rx="38" ry="45" fill="none" stroke="rgba(0,0,0,0.3)" stroke-width="2"/>
+        <path d="M20 45 A30 38 0 0 0 80 45" fill="none" stroke="rgba(0,0,0,0.25)" stroke-width="1.5"/>
+        <path d="M50 7 A30 38 0 0 0 50 83" fill="none" stroke="rgba(0,0,0,0.25)" stroke-width="1.5"/>
+        <path d="M32 88 L26 108 M68 88 L74 108 M50 90 L50 110" stroke="#5b4636" stroke-width="1.5"/>
+        <rect x="38" y="108" width="24" height="18" rx="3" fill="#7c4a2d"/>
+      </svg>`;
+  }
+
+  function createBalloons() {
+    balloonField.innerHTML = '';
+    balloons = [];
+    for (let i = 0; i < BALLOON_COUNT; i++) {
+      const colors = shuffle(COLOR_POOL).slice(0, 4 + Math.floor(Math.random() * 2));
+      const el = document.createElement('div');
+      el.className = 'balloon';
+      const size = 70 + Math.floor(Math.random() * 40);
+      const leftPct = 6 + (i * (88 / (BALLOON_COUNT - 1)));
+      el.style.width = size + 'px';
+      el.style.left = `calc(${leftPct}% - ${size / 2}px)`;
+      el.style.setProperty('--dx', `${Math.floor(Math.random() * 120 - 60)}px`);
+      el.style.setProperty('--dur', `${24 + Math.random() * 10}s`);
+      el.style.animationDelay = `${Math.random() * 1.5}s`;
+      el.innerHTML = balloonSVG('bln' + i + '-' + Date.now(), colors);
+      balloonField.appendChild(el);
+      balloons.push(el);
+    }
+  }
+
+  function launchBalloons() {
+    balloons.forEach((el, i) => {
+      if (el.classList.contains('launched')) return;
+      setTimeout(() => el.classList.add('launched'), i * 700);
+    });
+  }
+
+  function resetBalloons() {
+    createBalloons();
+  }
+
+  createBalloons();
+</script>
+</body>
+</html>
